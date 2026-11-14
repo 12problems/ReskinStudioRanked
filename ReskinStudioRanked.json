@@ -1,0 +1,14 @@
+{
+  "id": "ReskinStudioRanked",
+  "name": "Reskin Studio Ranked",
+  "display_name": "Reskin Studio Ranked",
+  "author": ["Virtualized"],
+  "description": "Ranked-safe texture, sound and text customization. Ships no art: it loads PNG/OGG/JSON files from a separate user folder, through Malverk.",
+  "prefix": "rsr",
+  "main_file": "main.lua",
+  "priority": -50,
+  "badge_colour": "5E3B76",
+  "badge_text_colour": "FFFFFF",
+  "version": "0.1.0",
+  "dependencies": ["Steamodded (>=1.0.0~BETA-1221a)", "Lovely (>=0.8)", "malverk"]
+}
