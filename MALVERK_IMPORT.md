@@ -128,7 +128,18 @@ Malverk's rule: `original_sheet = original_sheet or not keys`.
   that are in `soul_keys`. A key that is in `soul_keys` also owns the next cell (`index + 1`),
   the floating soul layer, which is read past, not imported.
 
-Keys that are not in `positions.json` (modded/unknown) are skipped with a warning naming the key.
+A key is looked up in its own set's sheet first. **Tarots, planets and spectrals are one atlas in the
+game**, and Malverk lets a texture of any of the three list keys of the others (for example a `Tarot`
+texture listing `c_venus`), so when a key is not on the declared sheet it is looked up in the other two,
+and imported into the sheet that owns it (the source cell is read the same way; a note says so).
+
+A key that is on **no** vanilla sheet is a **mod object** (for example `j_mp_ticket`):
+
+- Case B (packed layout, an allowed custom set: Joker, Tarot, Planet, Spectral, Voucher, Booster,
+  Enhanced, Back, with `px` and `py` of at most 256): its cell is read as above and written to a
+  **custom sheet** (section 7).
+- Case A (vanilla layout): its position is unknown, so it is skipped with a warning naming the key.
+- Any other set: skipped with a warning.
 
 ### 6.2 Cell extraction
 
@@ -163,6 +174,16 @@ Per set that has at least one covered key: `assets/1x/<sheet>.png`, `assets/2x/<
 (vanilla dimensions, transparent outside covered cells) and a `reskin.json` entry
 `{ "sheets": { "<sheet>": { "keys": [...] } } }`, `keys` sorted in `positions.json` order.
 Always emit `keys` (even for a full sheet) so objects the pack didn't draw stay vanilla.
+
+**Custom sheets** (FORMAT.md "Custom sheets"): per AltTexture that has mod objects, one packed image
+`assets/1x|2x/custom_<name>.png` holding those keys' cells in key order (key *i* = cell *i*, 10 columns
+at most, left to right then top to bottom, each cell `px*2 x py*2` at 2x), and a `reskin.json` entry
+`"custom": { "<name>": { "set", "keys", "px", "py" } }`. `<name>` is the texture key lower-cased with every
+run of characters outside `a-z0-9_` replaced by `_`, trimmed of `_`, cut to 28 characters, made unique with a
+`_2`, `_3`... suffix (`sheet` if empty). A transparent cell is not covered, like on vanilla sheets. When
+several textures cover the same mod key the later one wins, so the key is removed from the earlier sheet.
+A custom sheet left with no keys is not written.
+
 Pack name suggestion: the Steamodded manifest `name` (sanitized).
 
 ## 8. Localization
@@ -229,8 +250,13 @@ bytes). Both implementations must match all of it. Cases:
 15. Hostile: IHDR claiming 60000x60000, zip with `../` entry, Lua file with a 1M-token comment,
     deeply nested table, loc string > 4000 bytes, `__proto__` key, a Lua loc file containing code
     (`os.execute`) - all rejected or skipped, nothing executed
+16. `original_sheet = 'true'` (a string): Lua truthiness, so Case A
+17. A `Planet` key listed in a `Tarot` texture: imported into the planets sheet
+18. A packed texture of mod objects: one custom sheet, keys in order, `reskin.json` `custom` entry
+19. A mod object under `original_sheet`: skipped with a warning; two textures covering one mod key: later wins
 
 ## 12. Out of scope (v1)
 
-Stake stickers, soul/floating layers, Malverk toggle textures, modded sets, shaders, anything
+Stake stickers, soul/floating layers, Malverk toggle textures, mod object sets other than those listed
+in 6.1, shaders, anything
 that needs running Lua to resolve (computed paths/keys). These are reported, never silently lost.

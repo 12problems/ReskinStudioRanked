@@ -121,6 +121,70 @@ for _, s in ipairs(SHEETS) do
 	end
 end
 
+-- ---------------------------------------------------------------------------
+-- Custom sheets: art for objects that are NOT on a vanilla sheet (objects added
+-- by other mods, e.g. a multiplayer joker). reskin.json maps a name to
+--   { "set": "Joker", "keys": ["j_mp_ticket"], "px": 71, "py": 95 }
+-- and the image is assets/<n>x/custom_<name>.png, laid out PACKED: key i is cell
+-- i, left to right then top to bottom (what Malverk does for `keys` without
+-- `original_sheet`). Data only; see FORMAT.md.
+-- ---------------------------------------------------------------------------
+do
+	local CUSTOM_SETS = {
+		Joker = true, Tarot = true, Planet = true, Spectral = true,
+		Voucher = true, Booster = true, Enhanced = true, Back = true,
+	}
+	local MAX_CUSTOM_SHEETS, MAX_CUSTOM_KEYS = 64, 400
+
+	local function whole(n, lo, hi)
+		return type(n) == 'number' and n % 1 == 0 and n >= lo and n <= hi
+	end
+
+	if type(config.custom) == 'table' then
+		local names = {}
+		for name in pairs(config.custom) do
+			if type(name) == 'string' then names[#names + 1] = name end
+		end
+		table.sort(names) -- pairs() order is not stable; keep texture order deterministic
+		for i, name in ipairs(names) do
+			if i > MAX_CUSTOM_SHEETS then
+				warn('Too many custom sheets; ignoring the rest.')
+				break
+			end
+			local entry = config.custom[name]
+			local file = 'custom_' .. name
+			local keys = {}
+			if type(entry) == 'table' and type(entry.keys) == 'table' then
+				for _, k in ipairs(entry.keys) do
+					if type(k) == 'string' and #k <= 64 and k:match('^[%w_]+$') and #keys < MAX_CUSTOM_KEYS then
+						keys[#keys + 1] = k
+					end
+				end
+			end
+			local px = type(entry) == 'table' and entry.px ~= nil and entry.px or 71
+			local py = type(entry) == 'table' and entry.py ~= nil and entry.py or 95
+			if #name <= 32 and name:match('^[a-z0-9_]+$') and type(entry) == 'table'
+				and CUSTOM_SETS[entry.set] and #keys > 0 and whole(px, 1, 256) and whole(py, 1, 256)
+				and sheet_present(file) then
+				local alt = AltTexture({
+					key = file,
+					set = entry.set,
+					path = file .. '.png',
+					keys = keys,
+					px = px,
+					py = py,
+					loc_txt = { name = 'Custom ' .. name },
+				})
+				alt.mod = user_mod
+				texture_keys[#texture_keys + 1] = alt.key
+				info('Registered custom sheet ' .. name .. ' (' .. entry.set .. ', ' .. #keys .. ' key(s))')
+			else
+				warn('Ignoring custom sheet "' .. name .. '": invalid entry or missing ' .. file .. '.png.')
+			end
+		end
+	end
+end
+
 if #texture_keys > 0 then
 	TexturePack({
 		key = 'user_pack',

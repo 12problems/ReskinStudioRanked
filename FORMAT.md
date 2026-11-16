@@ -21,6 +21,8 @@ importers all read/write exactly this layout.
   assets/
     1x/<sheet>.png           optional, any subset of the sheets below
     2x/<sheet>.png           optional; if only one scale exists, Steamodded scales it
+    1x/custom_<name>.png     optional, see "Custom sheets" (declared in reskin.json)
+    2x/custom_<name>.png
     sounds/<key>.ogg         optional; replaces the vanilla sound/music `<key>`
   localization/<lang>.json   optional; <lang> is a game language code (en-us, fr, ...)
 ```
@@ -70,6 +72,32 @@ A sheet applies to every object of its type unless `reskin.json` restricts it:
 With `keys`, only those object keys read their cell from the sheet; the rest stay
 vanilla, so the sheet only has to contain those cells. Without `keys`, a missing or
 transparent cell shows as missing/blank.
+
+### Custom sheets: objects added by other mods
+
+Objects that are not on a vanilla sheet (for example a joker added by another mod) have no
+vanilla cell to reuse, so they get a **custom sheet**: a PNG laid out **packed** (the
+object's key list in order, left to right then top to bottom, the way Malverk lays out a
+texture that lists `keys` without `original_sheet`), declared in `reskin.json`:
+
+```json
+{
+  "version": 1,
+  "custom": {
+    "ticket": { "set": "Joker", "keys": ["j_mp_ticket"], "px": 71, "py": 95 }
+  }
+}
+```
+
+- The image is `assets/1x/custom_<name>.png` (and optionally `assets/2x/custom_<name>.png`,
+  exactly double). `<name>` matches `^[a-z0-9_]{1,32}$`.
+- `set` is one of `Joker`, `Tarot`, `Planet`, `Spectral`, `Voucher`, `Booster`, `Enhanced`, `Back`.
+- `keys`: 1 to 400 object keys, each matching `^[A-Za-z0-9_]{1,64}$`. Key *i* reads cell *i*.
+  Keys that don't exist in the running game are ignored.
+- `px`, `py`: cell size in 1x pixels, whole numbers 1 to 256 (default 71x95).
+- The 1x image's width and height must be whole multiples of `px` and `py`, no larger than
+  2048 pixels per side, and have at least as many cells as `keys`.
+- At most 64 custom sheets.
 
 ## Sounds and music
 
