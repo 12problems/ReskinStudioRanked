@@ -2,7 +2,7 @@
   "id": "ReskinStudioRanked",
   "name": "Reskin Studio Ranked",
   "display_name": "Reskin Studio Ranked",
-  "author": ["Virtualized"],
+  "author": ["12problems"],
   "description": "Ranked-safe texture, sound and text customization. Ships no art: it loads PNG/OGG/JSON files from a separate user folder, through Malverk.",
   "prefix": "rsr",
   "main_file": "main.lua",
