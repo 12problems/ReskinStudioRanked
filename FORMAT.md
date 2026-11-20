@@ -50,6 +50,21 @@ exactly twice the 1x dimensions.
 | `blinds`      | Blind       | 714x1054 (21 frames)  | 34x34     | BlindChips.png |
 | `stakes`      | Stake       | 145x58                | 29x29     | chips.png |
 
+Two more sheets are **whole sheets**: they are not objects Malverk manages. They have no `keys`
+list, the file must be complete (a blank cell is blank in game), and **both `assets/1x` and
+`assets/2x` must be present** (the mod ignores the sheet otherwise).
+
+| File          | 1x size               | Cell      | Vanilla file |
+|---------------|-----------------------|-----------|--------------|
+| `cards`       | 923x380 (13x4)        | 71x95     | 8BitDeck.png (ranks across, suits down) |
+| `shopsign`    | 452x57 (4 frames)     | 113x57    | ShopSignAnimation.png |
+
+- `cards` replaces the game's `cards_1` atlas (what the default deck skin reads). Malverk has no
+  playing-card set, and deck skins that ship their own atlases, Malverk-era packs included, are
+  unaffected. The same file also replaces the high-contrast sheet (`cards_2`), so players on the
+  high-contrast palette see the pack too.
+- `shopsign` replaces the game's `shop_sign` animation atlas in place; nothing else manages it.
+
 Dimensions are read from the game's own `resources/textures/1x` and enforced exactly by the launcher.
 
 `tarots`, `planets`, `spectrals`, `enhancers`, `decks` and `seals` are each laid out like
