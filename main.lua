@@ -185,6 +185,47 @@ do
 	end
 end
 
+-- ---------------------------------------------------------------------------
+-- Whole sheets: art that is not a Malverk-managed object. Both scales must be
+-- present and exactly the vanilla size (the launcher checks this), and the file
+-- has to be complete (a blank cell is blank in game). Pure image data; no code is
+-- read from the folder. See FORMAT.md.
+--
+--   cards.png    the playing card faces (13x4 cells, vanilla 8BitDeck layout).
+--                Malverk has no playing-card set, and the game's default deck skin
+--                reads the atlas `cards_1` directly, so this replaces that atlas.
+--                Other deck skins (including Malverk-era packs') ship their own
+--                atlases and are unaffected. The same file also replaces the
+--                high-contrast sheet (cards_2), so players on the high-contrast
+--                palette see the pack too (the Studio edits one sheet only).
+--   shopsign.png the shop sign animation. Nothing manages that sprite but its
+--                atlas, so it replaces the game's shop_sign atlas in place.
+-- ---------------------------------------------------------------------------
+local WHOLE_SHEETS = {
+	{ file = 'cards',    atlas = 'cards_1',   px = 71,  py = 95 },
+	{ file = 'cards',    atlas = 'cards_2',   px = 71,  py = 95 },
+	{ file = 'shopsign', atlas = 'shop_sign', px = 113, py = 57, frames = 4 },
+}
+
+for _, s in ipairs(WHOLE_SHEETS) do
+	if file_exists(USER_DIR .. 'assets/1x/' .. s.file .. '.png')
+		and file_exists(USER_DIR .. 'assets/2x/' .. s.file .. '.png') then
+		SMODS.Atlas({
+			key = s.atlas,
+			path = s.file .. '.png',
+			path_mod = user_mod,
+			px = s.px,
+			py = s.py,
+			frames = s.frames,
+			atlas_table = s.frames and 'ANIMATION_ATLAS' or 'ASSET_ATLAS',
+			prefix_config = { key = false }, -- keep the vanilla key so it replaces the game's sheet
+		})
+		info('Registered whole sheet ' .. s.file .. ' (replaces ' .. s.atlas .. ')')
+	elseif sheet_present(s.file) and s.atlas ~= 'cards_2' then
+		warn('Ignoring ' .. s.file .. '.png: both assets/1x and assets/2x are required.')
+	end
+end
+
 if #texture_keys > 0 then
 	TexturePack({
 		key = 'user_pack',
