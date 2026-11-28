@@ -23,6 +23,10 @@ importers all read/write exactly this layout.
     2x/<sheet>.png           optional; if only one scale exists, Steamodded scales it
     1x/custom_<name>.png     optional, see "Custom sheets" (declared in reskin.json)
     2x/custom_<name>.png
+    1x/deckskin_<id>_lc.png  optional, see "Deck skins" (declared in reskin.json)
+    2x/deckskin_<id>_hc.png  (and _lc / _hc at each scale)
+    1x/atlas_<name>.png      optional, see "Rebinds: animations and soul layers"
+    2x/atlas_<name>.png
     sounds/<key>.ogg         optional; replaces the vanilla sound/music `<key>`
   localization/<lang>.json   optional; <lang> is a game language code (en-us, fr, ...)
 ```
@@ -114,6 +118,66 @@ texture that lists `keys` without `original_sheet`), declared in `reskin.json`:
   2048 pixels per side, and have at least as many cells as `keys`.
 - At most 64 custom sheets.
 
+## Deck skins
+
+Selectable playing-card skins (they appear under Customize Deck; nothing is selected for the
+player). Declared in `reskin.json`:
+
+```json
+{ "version": 1, "deckSkins": { "my_skin": { "name": "My skin" } } }
+```
+
+- `<id>` matches `^[a-z0-9_]{1,40}$`; `name` is plain text, at most 64 characters. At most 16 skins.
+- Images: `assets/<n>x/deckskin_<id>_lc.png` (low contrast) and `deckskin_<id>_hc.png` (high
+  contrast). Each is a complete 13x4 face sheet, 923x380 at 1x (the same layout as `cards`),
+  and needs **both** `assets/1x` and `assets/2x`. Either contrast may be omitted; the other one
+  is used for both.
+- Unlike `cards`, a deck skin adds an option instead of replacing the game's default faces.
+
+## Rebinds: animations and soul layers
+
+Art for single objects that can't share a vanilla sheet: animated art (a strip of frames)
+and the floating "soul" layer of legendary jokers, The Soul, Hologram and similar cards.
+`reskin.json` declares small atlases and then points vanilla objects at cells of them:
+
+```json
+{
+  "version": 1,
+  "atlases": {
+    "joker_anim": { "px": 71, "py": 95, "frames": 4, "fps": 10 },
+    "joker_soul": { "px": 71, "py": 95 }
+  },
+  "objects": [
+    { "registry": "P_CENTERS", "key": "j_joker", "atlas": "joker_anim", "x": 0, "y": 0 },
+    { "registry": "P_CENTERS", "key": "j_perkeo", "soul_atlas": "joker_soul", "soul_x": 0, "soul_y": 0 },
+    { "registry": "P_CENTERS", "key": "c_soul", "soul_atlas": "joker_soul", "soul_x": 1, "soul_y": 0, "soul_shared": true }
+  ]
+}
+```
+
+- Atlas image: `assets/<n>x/atlas_<name>.png`, both scales. `<name>` matches
+  `^[a-z0-9_]{1,40}$`. `px`/`py` are whole numbers 1 to 256. With `frames` (1 to 64) the atlas
+  is an animation strip, `frames` cells wide and one cell tall, played at `fps` (1 to 60, default
+  10). Without it, it is a plain grid. Both scales exactly double; whole cells; at most 2048
+  pixels per side at 1x. At most 64 atlases.
+- Object: `registry` is one of `P_CENTERS`, `P_BLINDS`, `P_TAGS`, `P_SEALS`, `P_STAKES`; `key` matches
+  `^[A-Za-z0-9_]{1,64}$` (a key missing from the running game is ignored). `atlas` + `x`/`y`
+  replaces the object's art; `soul_atlas` + `soul_x`/`soul_y` replaces only its floating layer
+  (`soul_shared: true` for The Soul, whose gem is a shared sprite). `x`/`y` default to 0 and
+  are whole numbers 0 to 255. Every `atlas` / `soul_atlas` must name a declared atlas. At most 1000 objects.
+- A transparent cell hides a floating layer.
+
+## Default shaders
+
+A purely visual shader on specific cards, by vanilla center key (no scoring effect):
+
+```json
+{ "version": 1, "shaders": [ { "key": "j_joker", "shader": "foil" } ] }
+```
+
+`shader` is one of `foil`, `holo`, `polychrome`, `negative`, `voucher`, `booster`, `hologram`,
+`debuff`, `gold_seal`. Up to 1000 entries; `key` matches `^[A-Za-z0-9_]{1,64}$`.
+
 ## Sounds and music
 
 `assets/sounds/<key>.ogg`, where `<key>` is a vanilla sound or music key (`chips1`,
@@ -144,7 +208,8 @@ The launcher enforces these; the mod additionally ignores anything that fails th
 
 - Only the paths above. Any other file, any symlink/junction, any path outside the layout: reject.
 - `.png`: valid PNG, exact expected dimensions for the sheet (see table; 2x = 2 * 1x),
-  size cap per file (proposed 8 MiB).
+  size cap per file (proposed 8 MiB). Deck skin images are 923x380; atlas images follow their
+  declared `px`/`py`/`frames`.
 - `.ogg`: valid Ogg Vorbis, size cap per file (proposed 20 MiB; music tracks are large),
   total folder cap (proposed 200 MiB).
 - `.json`: valid UTF-8 JSON; only strings / arrays / objects, depth <= 8, strings <= 4000
@@ -155,13 +220,15 @@ The launcher enforces these; the mod additionally ignores anything that fails th
 - **Reskin Studio "Export for Ranked"** (`reskin/lib/generateRanked.ts` in the website repo):
   places each edited object's art at its vanilla cell, writes vanilla-size sheets at 1x and 2x,
   and a `reskin.json` whose `keys` list exactly the edited objects. Localization edits become
-  `localization/<lang>.json`. It drops soul overlays, default shaders, GIF frames after the
-  first, playing-card/chip/shop-sign sheets and the mod icon (with a warning), and the bundle
-  carries no project file. The Studio's "Import pack" reads such a bundle back (`importRanked.ts`:
-  STORE zips only, allow-listed paths, exact vanilla sheet sizes, same size caps as the launcher),
-  recovering the final art and text but not the uncropped sources or fit/edge settings.
+  `localization/<lang>.json`. Stake chips become the `stakes` sheet and the shop sign the
+  `shopsign` sheet. Each playing-card skin becomes a deck skin. Soul layers, uploaded GIF
+  animations and default shaders become rebinds and shaders. It leaves out the mod icon (with a
+  warning), and the bundle carries no project file. The Studio's "Import pack" reads such a
+  bundle back (`importRanked.ts`: STORE zips only, allow-listed paths, exact sizes, same size
+  caps as the launcher), recovering the final art and text but not the uncropped sources or
+  fit/edge settings.
 
-## Out of scope for v1
+## Out of scope
 
-Stake stickers, soul/floating layers, Malverk toggle textures, shaders. The Studio's
-non-Ranked CustomReskin export is unchanged.
+Stake stickers, Malverk toggle textures, custom shaders. The Studio's non-Ranked CustomReskin
+export is unchanged.
