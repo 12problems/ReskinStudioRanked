@@ -226,6 +226,304 @@ for _, s in ipairs(WHOLE_SHEETS) do
 	end
 end
 
+-- ---------------------------------------------------------------------------
+-- Deck skins: selectable playing card skins (Customize Deck), each a pair of
+-- complete 13x4 face sheets (low / high contrast). reskin.json declares them:
+--   "deckSkins": { "<id>": { "name": "My skin" } }
+-- and the images are assets/<n>x/deckskin_<id>_lc.png / deckskin_<id>_hc.png
+-- (either variant may be missing; the other one is used for both). Both scales
+-- are required per image. Nothing is selected automatically.
+-- ---------------------------------------------------------------------------
+local function prefixed(key)
+	return ((mod.prefix and mod.prefix ~= '') and (mod.prefix .. '_') or '') .. key
+end
+
+local function both_scales(name)
+	return file_exists(USER_DIR .. 'assets/1x/' .. name .. '.png')
+		and file_exists(USER_DIR .. 'assets/2x/' .. name .. '.png')
+end
+
+local function whole_number(n, lo, hi)
+	return type(n) == 'number' and n % 1 == 0 and n >= lo and n <= hi
+end
+
+local function sorted_string_keys(t)
+	local out = {}
+	for k in pairs(t) do
+		if type(k) == 'string' then out[#out + 1] = k end
+	end
+	table.sort(out) -- pairs() order is not stable; keep registration order deterministic
+	return out
+end
+
+do
+	local MAX_DECK_SKINS = 16
+	local RANKS = { '2', '3', '4', '5', '6', '7', '8', '9', '10', 'Jack', 'Queen', 'King', 'Ace' }
+	local SUITS = { 'Hearts', 'Clubs', 'Diamonds', 'Spades' }
+
+	if type(config.deckSkins) == 'table' then
+		for i, id in ipairs(sorted_string_keys(config.deckSkins)) do
+			if i > MAX_DECK_SKINS then
+				warn('Too many deck skins; ignoring the rest.')
+				break
+			end
+			local entry = config.deckSkins[id]
+			local lc_file, hc_file = 'deckskin_' .. id .. '_lc', 'deckskin_' .. id .. '_hc'
+			local has_lc = both_scales(lc_file)
+			local has_hc = both_scales(hc_file)
+			if #id <= 40 and id:match('^[a-z0-9_]+$') and type(entry) == 'table' and (has_lc or has_hc) then
+				local name = type(entry.name) == 'string' and entry.name:gsub('%c', ''):sub(1, 64) or ''
+				if name == '' then name = id end
+				local function register(file, present)
+					if not present then return nil end
+					SMODS.Atlas({ key = file, path = file .. '.png', path_mod = user_mod, px = 71, py = 95 })
+					return prefixed(file)
+				end
+				local low = register(lc_file, has_lc)
+				local high = register(hc_file, has_hc)
+				low, high = low or high, high or low
+				for _, suit in ipairs(SUITS) do
+					local function palette(key, atlas, hc)
+						return {
+							key = key,
+							ranks = RANKS,
+							display_ranks = { 'King', 'Queen', 'Jack' },
+							atlas = atlas,
+							pos_style = 'deck',
+							hc_default = hc,
+						}
+					end
+					SMODS.DeckSkin({
+						key = 'deckskin_' .. id .. '_' .. string.lower(suit),
+						suit = suit,
+						loc_txt = name,
+						palettes = { palette('lc', low, false), palette('hc', high, true) },
+					})
+				end
+				info('Registered deck skin ' .. id)
+			else
+				warn('Ignoring deck skin "' .. id:sub(1, 40) .. '": invalid entry or missing image.')
+			end
+		end
+	end
+end
+
+-- ---------------------------------------------------------------------------
+-- Rebinds: art for single objects that cannot live on a shared vanilla sheet:
+-- animations (GIF-style frame strips) and floating "soul" overlay layers.
+--   "atlases": { "<name>": { "px": 71, "py": 95, "frames": 4, "fps": 10 } }
+--       image assets/<n>x/atlas_<name>.png, both scales; `frames` makes it an
+--       animation strip (frames cells wide), otherwise a plain grid of cells.
+--   "objects": [ { "registry": "P_CENTERS", "key": "j_joker", "atlas": "<name>",
+--                  "x": 0, "y": 0, "soul_atlas": "<name>", "soul_x": 0,
+--                  "soul_y": 0, "soul_shared": false } ]
+--       points that vanilla object (or just its soul layer) at a cell of an atlas.
+-- Data only; the registries and keys are checked, no code is read. See FORMAT.md.
+-- ---------------------------------------------------------------------------
+do
+	local MAX_ATLASES, MAX_OBJECTS = 64, 1000
+	local REGISTRY = {
+		P_CENTERS = function() return G.P_CENTERS end,
+		P_BLINDS = function() return G.P_BLINDS end,
+		P_TAGS = function() return G.P_TAGS end,
+		P_SEALS = function() return G.P_SEALS end,
+		P_STAKES = function() return G.P_STAKES end,
+	}
+
+	local atlas_defs = {}
+	if type(config.atlases) == 'table' then
+		for i, name in ipairs(sorted_string_keys(config.atlases)) do
+			if i > MAX_ATLASES then
+				warn('Too many atlases; ignoring the rest.')
+				break
+			end
+			local a = config.atlases[name]
+			local file = 'atlas_' .. name
+			local frames_ok = a ~= nil and type(a) == 'table' and (a.frames == nil or whole_number(a.frames, 1, 64))
+			local fps_ok = type(a) == 'table' and (a.fps == nil or (type(a.fps) == 'number' and a.fps >= 1 and a.fps <= 60))
+			if #name <= 40 and name:match('^[a-z0-9_]+$') and type(a) == 'table'
+				and whole_number(a.px, 1, 256) and whole_number(a.py, 1, 256) and frames_ok and fps_ok
+				and both_scales(file) then
+				SMODS.Atlas({
+					key = file,
+					path = file .. '.png',
+					path_mod = user_mod,
+					px = a.px,
+					py = a.py,
+					frames = a.frames,
+					fps = a.fps,
+					atlas_table = a.frames and 'ANIMATION_ATLAS' or 'ASSET_ATLAS',
+				})
+				atlas_defs[name] = prefixed(file)
+				info('Registered atlas ' .. name)
+			else
+				warn('Ignoring atlas "' .. name:sub(1, 40) .. '": invalid entry or missing images.')
+			end
+		end
+	end
+
+	local objects = {}
+	if type(config.objects) == 'table' then
+		for i, o in ipairs(config.objects) do
+			if i > MAX_OBJECTS then
+				warn('Too many objects; ignoring the rest.')
+				break
+			end
+			local good = type(o) == 'table' and REGISTRY[o.registry] ~= nil
+				and type(o.key) == 'string' and #o.key <= 64 and o.key:match('^[%w_]+$') ~= nil
+				and (o.atlas == nil or atlas_defs[o.atlas] ~= nil)
+				and (o.soul_atlas == nil or atlas_defs[o.soul_atlas] ~= nil)
+				and (o.atlas ~= nil or o.soul_atlas ~= nil)
+			for _, f in ipairs({ 'x', 'y', 'soul_x', 'soul_y' }) do
+				if good and o[f] ~= nil and not whole_number(o[f], 0, 255) then good = false end
+			end
+			if good then
+				objects[#objects + 1] = {
+					registry = o.registry,
+					key = o.key,
+					atlas = o.atlas and atlas_defs[o.atlas] or nil,
+					x = o.x, y = o.y,
+					soul_atlas = o.soul_atlas and atlas_defs[o.soul_atlas] or nil,
+					soul_x = o.soul_x, soul_y = o.soul_y,
+					soul_shared = o.soul_shared == true,
+				}
+			else
+				warn('Ignoring an invalid entry in "objects".')
+			end
+		end
+	end
+
+	local function apply_object(o)
+		local get = REGISTRY[o.registry]
+		local tbl = get and get()
+		local entry = tbl and tbl[o.key]
+		if not entry then return false end
+		if o.atlas then
+			-- A floating layer falls back to the base atlas in Steamodded. Pin the
+			-- original before changing the background, or vanilla soul_pos reads the
+			-- replacement atlas at its old coordinates.
+			if entry.soul_pos and not o.soul_atlas then
+				entry.hc_soul_atlas = entry.hc_soul_atlas or entry.soul_atlas or entry.hc_atlas or entry.atlas or entry.set
+				entry.lc_soul_atlas = entry.lc_soul_atlas or entry.soul_atlas or entry.lc_atlas or entry.atlas or entry.set
+				entry.soul_atlas = entry.soul_atlas or entry.atlas or entry.set
+			end
+			entry.hc_atlas = nil
+			entry.lc_atlas = nil
+			entry.atlas = o.atlas
+			entry.pos = { x = o.x or 0, y = o.y or 0 }
+		end
+		if o.soul_atlas and not o.soul_shared then
+			entry.hc_soul_atlas = nil
+			entry.lc_soul_atlas = nil
+			entry.soul_atlas = o.soul_atlas
+			entry.soul_pos = { x = o.soul_x or 0, y = o.soul_y or 0 }
+		end
+		if o.soul_atlas and o.soul_shared then
+			-- The Soul's gem is G.shared_soul, not a floating center sprite: keep its
+			-- vanilla animation but swap the shared sprite's texture and cell.
+			local atlas = G.ASSET_ATLAS and G.ASSET_ATLAS[o.soul_atlas]
+			if not G.shared_soul or not atlas then return false end
+			local pos = G.shared_soul.sprite_pos or {}
+			if G.shared_soul.atlas ~= atlas or pos.x ~= (o.soul_x or 0) or pos.y ~= (o.soul_y or 0) then
+				G.shared_soul.atlas = atlas
+				G.shared_soul:set_sprite_pos({ x = o.soul_x or 0, y = o.soul_y or 0 })
+			end
+		end
+		return true
+	end
+
+	local function apply_all()
+		local complete = true
+		for _, o in ipairs(objects) do
+			local ok, applied = pcall(apply_object, o)
+			if not ok or not applied then complete = false end
+		end
+		return complete
+	end
+
+	if #objects > 0 then
+		mod._rebinds_applied = G and G.P_CENTERS and apply_all() or false
+		if not mod._rebinds_applied then
+			-- G.shared_soul may be created after the prototype tables.
+			local orig_update = Game.update
+			function Game:update(dt)
+				orig_update(self, dt)
+				if not mod._rebinds_applied and G and G.P_CENTERS then
+					mod._rebinds_applied = apply_all()
+				end
+			end
+		end
+		-- Texture-scaling changes can recreate G.shared_soul; rebind just before
+		-- Steamodded's order-50 Soul draw. Its animation stays intact.
+		if SMODS and SMODS.DrawStep then
+			for _, o in ipairs(objects) do
+				if o.soul_shared and o.soul_atlas then
+					SMODS.DrawStep({
+						key = 'rebind_shared_' .. o.key,
+						order = 49,
+						func = function(self)
+							if self.config.center == G.P_CENTERS[o.key] then apply_object(o) end
+						end,
+					})
+				end
+			end
+		end
+	end
+end
+
+-- ---------------------------------------------------------------------------
+-- Default shaders: a purely visual shader on specific cards, by vanilla center
+-- key. "shaders": [ { "key": "j_joker", "shader": "foil" } ]. The shader name
+-- must be one of the whitelisted visual shaders; no scoring effect.
+-- ---------------------------------------------------------------------------
+do
+	local ALLOWED = {
+		foil = true, holo = true, polychrome = true, negative = true, voucher = true,
+		booster = true, hologram = true, debuff = true, gold_seal = true,
+	}
+	local ALIAS = { gold_seal = 'voucher' }
+	local by_key, count = {}, 0
+	if type(config.shaders) == 'table' then
+		for i, s in ipairs(config.shaders) do
+			if i > 1000 then
+				warn('Too many shaders; ignoring the rest.')
+				break
+			end
+			if type(s) == 'table' and type(s.key) == 'string' and #s.key <= 64 and s.key:match('^[%w_]+$')
+				and type(s.shader) == 'string' and ALLOWED[s.shader] then
+				by_key[s.key] = s.shader
+				count = count + 1
+			else
+				warn('Ignoring an invalid entry in "shaders".')
+			end
+		end
+	end
+	if count > 0 and SMODS and SMODS.DrawStep then
+		local function center_key(card)
+			local c = card.config
+			return c and (c.center_key or (c.center and c.center.key))
+		end
+		SMODS.DrawStep({
+			key = 'default_shader',
+			order = 21, -- just after the edition step (order 20)
+			func = function(self)
+				local raw = by_key[center_key(self)]
+				if not raw then return end
+				local name = ALIAS[raw] or raw
+				local send = self.ARGS and self.ARGS.send_to_shader
+				self.children.center:draw_shader(name, nil, send)
+				if raw == 'negative' then self.children.center:draw_shader('negative_shine', nil, send) end
+				local hide_front = self.should_hide_front and self:should_hide_front()
+				if self.children.front and not hide_front then
+					self.children.front:draw_shader(name, nil, send)
+					if raw == 'negative' then self.children.front:draw_shader('negative_shine', nil, send) end
+				end
+			end,
+		})
+		info('Registered ' .. count .. ' default shader(s)')
+	end
+end
+
 if #texture_keys > 0 then
 	TexturePack({
 		key = 'user_pack',

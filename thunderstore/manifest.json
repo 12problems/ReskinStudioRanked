@@ -1,0 +1,10 @@
+{
+  "name": "ReskinStudioRanked",
+  "version_number": "1.1.0",
+  "website_url": "https://github.com/12problems/ReskinStudioRanked",
+  "description": "Ranked-safe texture, sound and text customization for Balatro. Ships no art: it loads your own PNG/OGG/JSON pack from a separate folder through Malverk, so Ranked verification of the mod never changes. Made for the Balatro Essentials Toolkit.",
+  "dependencies": [
+    "Steamodded-Steamodded-26.1002.0",
+    "Eremel_Mods-Malverk-1.1.5"
+  ]
+}
